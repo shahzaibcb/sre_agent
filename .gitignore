@@ -1,0 +1,20 @@
+# Secrets — never commit
+.env
+.env.local
+*.pem
+kubeconfig
+
+# Incident history (operational data, may contain hostnames)
+cases.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
