@@ -1,4 +1,4 @@
-# sre_agent
+# Site_Reliability_Engineer
 
 An autonomous Kubernetes SRE agent that triages cluster incidents, investigates
 to root cause, and remediates inside policy guardrails — built on LangChain and
