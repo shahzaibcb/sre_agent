@@ -138,21 +138,33 @@ does less:
 
 ## Roadmap
 
-**Incident memory (next).** A case library keyed by failure signature —
-`ImagePullBackOff|default/nginx` — derived deterministically from health evidence
-already collected, so recognising a repeat costs nothing. Verified fixes and
-*failed* attempts both get recorded; retrieval injects a compact prior-incident
-block into the opening message.
+This release is the boilerplate. The direction from here:
 
-The important constraint: retrieved history **reorders the investigation, it does
-not replace it**. `ImagePullBackOff` is a typo'd tag, but it is also a deleted
-upstream image, an expired pull secret, or a rate-limited registry. An agent that
-pattern-matches straight to a stored fix makes confident wrong writes to
-production. Memory should tell the agent what to check first, never what to do.
+**Root cause analysis reports.** The agent already records observations,
+hypotheses, actions and verification results as structured state rather than
+chat history. That record is most of an RCA already — the next step is emitting
+it as a written report an on-call engineer can hand to a review, instead of
+leaving it inside the run.
 
-**Beyond that:** health-check gaps above, per-time-window rate limiting, RCA
-drafting from the structured state, and a dry-run mode that proposes a
-remediation plan for human approval instead of applying it.
+**Integration with external monitoring and alerting.** Today the agent is
+started by hand from the CLI and discovers problems by looking. It should be
+triggered by the alert that fired — Prometheus, Grafana, PagerDuty, OpsGenie —
+and pull the surrounding signals into its investigation rather than starting
+from a bare cluster query.
+
+**An experience brain.** The agent should learn from past incidents instead of
+investigating an identical failure from scratch every time. Verified fixes and
+failed attempts both get recorded against a failure signature, so a repeat
+incident is recognised before the model is called, and the agent gets more
+intelligent about a specific environment the longer it runs there.
+
+One constraint on that last item, because it decides whether the feature helps
+or hurts: retrieved history should **reorder the investigation, not replace
+it**. `ImagePullBackOff` is a typo'd image tag, but it is also a deleted
+upstream image, an expired pull secret, or a rate-limited registry. An agent
+that pattern-matches straight from symptom to stored fix makes confident wrong
+writes to production. Experience should tell the agent what to check first,
+never what to do without checking.
 
 ## Project layout
 
