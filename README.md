@@ -116,7 +116,7 @@ can write to it. Point it at a test cluster first.
 Break a deployment and watch it recover:
 
 ```bash
-kubectl create deployment nginx --image=nginx:latest
+kubectl create deployment nginx --image=nginx:latest 
 kubectl set image deployment/nginx nginx=nginx:latests   # typo → ImagePullBackOff
 python k8s_agent.py
 ```
@@ -181,4 +181,3 @@ tools/
   restart_deployment.py         mutating, attempt-capped
   edit_deployment.py            mutating, attempt-capped
 ```
-
