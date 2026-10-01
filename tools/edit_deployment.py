@@ -2,6 +2,7 @@ from langchain.tools import tool, ToolRuntime
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 import subprocess
+import time
 
 MAX_REMEDIATION_ATTEMPTS = 3
 
@@ -51,8 +52,9 @@ def rollout_edit_deployment(
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=30
         )
+        time.sleep(5)
     except subprocess.TimeoutExpired:
         return Command(
             update={

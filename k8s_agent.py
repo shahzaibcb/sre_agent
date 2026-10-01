@@ -12,9 +12,10 @@ import sys
 from langgraph.checkpoint.memory import InMemorySaver
 
 from health import quick_health_check
+from memory import create_table, get_cluster_name, save_incident_report
 from tools import run_kubectl, get_kubernetes_events, record_observation, record_hypothesis, record_action, record_verifications, rollout_restart_deployment, rollout_edit_deployment
 
-load_dotenv()  # load the environment variables from the .env file
+load_dotenv()
 
 
 class KubernetesAgentState(AgentState):
@@ -28,6 +29,15 @@ class KubernetesAgentState(AgentState):
 
     attempt_count: NotRequired[int]
     resolution_status: NotRequired[str]
+
+from pydantic import BaseModel, Field
+class output_format(BaseModel):
+    observations: list[str] = Field(description="Observations of the problem")
+    actions_taken: list[str] = Field(description="Actions taken to fix the problem")
+    status: str = Field(description="fixed or broken")
+    cluster_name: str = Field(description="Name of the cluster")
+    namespace: str = Field(description="Namespace of the problem")
+    resource_name: str = Field(description="Kubernetes kind, e.g. Deployment, Pod, etc.")
 
 
 @before_agent
@@ -45,6 +55,7 @@ def short_circuit_if_healthy(state: KubernetesAgentState, runtime: Runtime) -> d
         }
     # Unhealthy: let the agent proceed, but hand it the evidence up front
     # so it doesn't waste its first tool call rediscovering the problem.
+    cluster = get_cluster_name()
     return {
         "health_status": "Unhealthy",
         "health_evidence": evidence,
@@ -83,8 +94,9 @@ def stop_after_max_attempts(state: KubernetesAgentState, runtime: Runtime) -> di
 agent = create_agent(
     tools=[run_kubectl, get_kubernetes_events, record_observation, record_hypothesis, record_action, record_verifications, rollout_restart_deployment, rollout_edit_deployment],
     model=ChatDeepSeek(model="deepseek-chat"),
-    middleware=[short_circuit_if_healthy, stop_after_max_attempts],
+    middleware=[short_circuit_if_healthy,stop_after_max_attempts],
     state_schema=KubernetesAgentState,
+    response_format=output_format,
     checkpointer=InMemorySaver(),
 )
 
@@ -99,8 +111,7 @@ Check:
 
 If the cluster is unhealthy:
 
-- Investigate using run_kubectl.
-- Use get_kubernetes_events when useful.
+- Use only get_kubernetes_events to investigate the problem.
 - When you discover an important finding, use record_observation.
 - Continue investigating until you have a reasonable root-cause hypothesis.
 - When you perform an investigation action, use record_action to record what you did.
@@ -136,7 +147,7 @@ After restarting:
 
 1. Verify the Deployment and its pods.
 2. Record the verification result.
-3. Do not assume the problem is fixed just because the restart succeeded.
+3. Do not assume the problem is fixed just because the restart succeeded. If the problem is still present, continue investigating.
 
 In the end provide exactly one verdict:
 
@@ -145,6 +156,8 @@ Status: Healthy
 or
 
 Status: Unhealthy
+
+Also provide the output in structured format so it can be added into the database later.
 """
 
 
@@ -153,6 +166,10 @@ if len(sys.argv) > 1:
 else:
     user_prompt = prompt
 
+# Step 1: make sure the memory table exists. No save/search yet.
+create_table()
+# Step 3: real cluster id from kubectl, not from the model.
+cluster = get_cluster_name()
 
 result = agent.invoke(
     {
@@ -162,18 +179,12 @@ result = agent.invoke(
     }, {"configurable": {"thread_id": "1"}}
 )
 
-final_output = result["messages"][-1].content
-# Provide a clean summary with proper line breaks for readability
-def clean_summary(output: str) -> str:
-    # Remove excessive line breaks, strip leading/trailing whitespace
-    # and replace multiple spaces with a single space if needed.
-    lines = output.splitlines()
-    cleaned_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped:
-            cleaned_lines.append(stripped)
-    # Join the cleaned lines into paragraphs.
-    return "\n".join(cleaned_lines)
+report = result.get("structured_response")
 
-print(clean_summary(final_output))
+
+
+if report is not None:
+    #report.cluster_name = cluster
+    save_incident_report(report)
+    from pprint import pprint
+    pprint(report)
